@@ -48,6 +48,24 @@ export default function VotingPage() {
 
     initializeData();
 
+    // Add global reset function for debugging (development only)
+    if (typeof window !== 'undefined') {
+      (window as unknown).resetVotingSystem = () => {
+        console.log('🔄 Manual reset triggered...');
+        
+        // Clear all localStorage
+        localStorage.clear();
+        
+        // Reset mock data
+        mockDataService.resetAllVotingData();
+        
+        // Reload page
+        window.location.reload();
+      };
+      
+      console.log('🛠️ Debug: Use window.resetVotingSystem() to manually reset');
+    }
+
     // Cleanup
     return () => {
       if (stopSimulation) {
@@ -67,6 +85,67 @@ export default function VotingPage() {
     } catch (err) {
       console.error('Failed to refresh data:', err);
       throw err; // Re-throw to let VotingInterface handle the error
+    }
+  };
+
+  // Reset all voting data (for development/testing)
+  const handleResetVoting = async () => {
+    if (confirm('Are you sure you want to reset all voting data? This will clear all votes and cannot be undone.')) {
+      try {
+        console.log('🔄 Starting voting reset...');
+        
+        // Step 1: Set a flag to indicate we're resetting
+        sessionStorage.setItem('voting-reset-in-progress', 'true');
+        
+        // Step 2: Reset the mock data service
+        mockDataService.resetAllVotingData();
+        
+        // Step 3: Comprehensive localStorage cleanup
+        if (typeof window !== 'undefined') {
+          // Clear all localStorage completely to ensure clean state
+          const allKeys = Object.keys(localStorage);
+          console.log('📋 All localStorage keys before reset:', allKeys);
+          
+          // Remove all voting-related keys
+          const votingKeys = allKeys.filter(key => 
+            key.includes('voting') || 
+            key.includes('session') ||
+            key.startsWith('voting-') ||
+            key.includes('2025-finale') ||
+            key.startsWith('voting-state-') // Explicitly match the VotingContext localStorage pattern
+          );
+          
+          votingKeys.forEach(key => {
+            localStorage.removeItem(key);
+            console.log(`🗑️ Cleared localStorage: ${key}`);
+          });
+          
+          // Additional safety: clear all localStorage if no protected keys
+          // This ensures complete reset even if key patterns change
+          if (allKeys.length === votingKeys.length) {
+            localStorage.clear();
+            console.log('🧹 Cleared all localStorage (all keys were voting-related)');
+          }
+          
+          // Also clear sessionStorage voting data
+          const sessionKeys = Object.keys(sessionStorage).filter(key => 
+            key.includes('voting') && key !== 'voting-reset-in-progress'
+          );
+          sessionKeys.forEach(key => {
+            sessionStorage.removeItem(key);
+            console.log(`🗑️ Cleared sessionStorage: ${key}`);
+          });
+        }
+        
+        console.log('✅ Reset complete, reloading page...');
+        
+        // Step 4: Force hard reload to ensure clean state
+        window.location.href = window.location.href;
+        
+      } catch (err) {
+        console.error('❌ Failed to reset voting data:', err);
+        alert('Failed to reset voting data. Please try refreshing the page manually.');
+      }
     }
   };
 
@@ -136,20 +215,31 @@ export default function VotingPage() {
                 </p>
               </div>
               
-              {/* Session Info */}
-              {session && (
-                <div className="text-right">
-                  <div className="text-sm text-gray-500">Session</div>
-                  <div className="font-medium text-gray-900">{session.id}</div>
-                  <div className="text-xs text-gray-500">
-                    {session.isActive ? (
-                      <span className="text-green-600">● Live</span>
-                    ) : (
-                      <span className="text-red-600">● Closed</span>
-                    )}
+              <div className="flex items-center space-x-4">
+                {/* Reset Button (Development) */}
+                <button
+                  onClick={handleResetVoting}
+                  className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                  title="Reset all voting data"
+                >
+                  🔄 Reset Votes
+                </button>
+                
+                {/* Session Info */}
+                {session && (
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">Session</div>
+                    <div className="font-medium text-gray-900">{session.id}</div>
+                    <div className="text-xs text-gray-500">
+                      {session.isActive ? (
+                        <span className="text-green-600">● Live</span>
+                      ) : (
+                        <span className="text-red-600">● Closed</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -172,7 +262,7 @@ export default function VotingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="text-center">
               <p className="text-gray-600 text-sm">
-                © 2024 America's Got Talent Live Voting System
+                © 2024 America&apos;s Got Talent Live Voting System
               </p>
               <p className="text-gray-500 text-xs mt-2">
                 Built with Next.js, React, and TypeScript

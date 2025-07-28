@@ -329,6 +329,57 @@ export class MockDataService {
   }
 
   /**
+   * Complete reset including localStorage (for development/testing)
+   */
+  resetAllVotingData(): void {
+    // Clear in-memory votes
+    this.userVotes.clear();
+    
+    // Reset contestant vote counts to original values
+    this.contestants.forEach((contestant, index) => {
+      contestant.voteCount = mockContestants[index].voteCount;
+    });
+    
+    // Clear localStorage if available
+    if (typeof window !== 'undefined') {
+      try {
+        // Clear all possible localStorage keys used by the voting system
+        const sessionId = this.session.id;
+        
+        // MockDataService keys
+        localStorage.removeItem(`voting-app-votes-${sessionId}`);
+        
+        // VotingContext keys
+        localStorage.removeItem(`voting-state-${sessionId}`);
+        
+        // Also clear any default keys
+        localStorage.removeItem('voting-state-default');
+        localStorage.removeItem('voting-app-votes-default');
+        
+        // Clear all voting-related keys (comprehensive cleanup)
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('voting-') || key.includes('voting'))) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`🗑️ Removed localStorage key: ${key}`);
+        });
+        
+        console.log('✅ Voting data reset successfully');
+      } catch (error) {
+        console.warn('Failed to clear localStorage:', error);
+      }
+    }
+    
+    this.lastUpdateTime = new Date();
+  }
+
+  /**
    * Add random vote activity (for demo purposes)
    */
   simulateVoteActivity(): void {

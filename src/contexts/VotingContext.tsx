@@ -142,6 +142,27 @@ export const VotingProvider: React.FC<VotingProviderProps> = ({
   initialSession,
   initialContestants = [],
 }) => {
+  // Check if we're in the middle of a reset
+  const isResetting = typeof window !== 'undefined' && 
+    sessionStorage.getItem('voting-reset-in-progress') === 'true';
+  
+  if (isResetting) {
+    // Clear the reset flag
+    sessionStorage.removeItem('voting-reset-in-progress');
+    console.log('🔄 VotingContext: Reset detected, starting with clean state');
+    
+    // Extra safety: clear any remaining voting-state localStorage keys
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('voting-state-')) {
+          localStorage.removeItem(key);
+          console.log(`🔄 VotingContext: Cleared stale key: ${key}`);
+        }
+      });
+    }
+  }
+
   const initialVotingActive = initialSession ? 
     initialSession.isActive && 
     new Date() >= new Date(initialSession.startTime) && 
@@ -156,6 +177,9 @@ export const VotingProvider: React.FC<VotingProviderProps> = ({
     userVoteState: {
       ...initialState.userVoteState,
       sessionId: initialSession?.id || '',
+      // Force clean state if resetting - always start fresh
+      votedContestants: new Set(),
+      totalVotes: 0,
     },
   });
 
@@ -168,14 +192,33 @@ export const VotingProvider: React.FC<VotingProviderProps> = ({
     lastUpdated: new Date().toISOString(),
   };
 
-  const { value: storedVoteState, setValue: setStoredVoteState } = useLocalStorage(
+  const { value: storedVoteState, setValue: setStoredVoteState, removeValue } = useLocalStorage(
     storageKey,
     defaultStorageState
   );
 
+  // Force clear stored state if reset was detected
+  useEffect(() => {
+    if (isResetting && removeValue) {
+      console.log('🔄 VotingContext: Forcing localStorage clear for voting state');
+      removeValue();
+      // Also force the stored state to default values
+      setStoredVoteState(defaultStorageState);
+    }
+  }, [isResetting, removeValue, setStoredVoteState]);
+
   // Sync with localStorage on mount and when session changes
   useEffect(() => {
-    if (storedVoteState && storedVoteState.sessionId === state.session?.id) {
+    // Skip localStorage sync if we just reset
+    if (isResetting) {
+      console.log('🔄 VotingContext: Skipping localStorage sync due to reset');
+      return;
+    }
+    
+    // Only restore from localStorage if it's not a default/empty state
+    if (storedVoteState && 
+        storedVoteState.sessionId === state.session?.id && 
+        storedVoteState.totalVotes > 0) {
       // Only update if the stored state is different from current state
       const currentVotedContestants = Array.from(state.userVoteState.votedContestants).sort();
       const storedVotedContestants = storedVoteState.votedContestants.sort();
